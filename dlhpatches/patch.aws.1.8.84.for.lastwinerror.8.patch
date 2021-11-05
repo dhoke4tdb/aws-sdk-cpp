@@ -1,0 +1,458 @@
+diff --git a/aws-cpp-sdk-core/include/aws/core/VersionConfig.h b/aws-cpp-sdk-core/include/aws/core/VersionConfig.h
+index 02811d1f7a..7a73bbf481 100644
+--- a/aws-cpp-sdk-core/include/aws/core/VersionConfig.h
++++ b/aws-cpp-sdk-core/include/aws/core/VersionConfig.h
+@@ -1,6 +1,6 @@
+-/**
+- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+- * SPDX-License-Identifier: Apache-2.0.
+- */
+-
+-#define AWS_SDK_VERSION_STRING "1.8.84"
++/**
++ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
++ * SPDX-License-Identifier: Apache-2.0.
++ */
++
++#define AWS_SDK_VERSION_STRING "1.8.84"
+diff --git a/aws-cpp-sdk-core/include/aws/core/http/HttpClient.h b/aws-cpp-sdk-core/include/aws/core/http/HttpClient.h
+index 4c292064d7..411c374fd1 100644
+--- a/aws-cpp-sdk-core/include/aws/core/http/HttpClient.h
++++ b/aws-cpp-sdk-core/include/aws/core/http/HttpClient.h
+@@ -41,7 +41,7 @@ namespace Aws
+              */
+             virtual std::shared_ptr<HttpResponse> MakeRequest(const std::shared_ptr<HttpRequest>& request,
+                 Aws::Utils::RateLimits::RateLimiterInterface* readLimiter = nullptr,
+-                Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter = nullptr) const = 0;
++                Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter = nullptr) = 0;
+ 
+             /**
+              * If yes, the http client supports transfer-encoding:chunked.
+diff --git a/aws-cpp-sdk-core/include/aws/core/http/windows/WinHttpSyncHttpClient.h b/aws-cpp-sdk-core/include/aws/core/http/windows/WinHttpSyncHttpClient.h
+index 7f995b088c..5aed2df1b7 100644
+--- a/aws-cpp-sdk-core/include/aws/core/http/windows/WinHttpSyncHttpClient.h
++++ b/aws-cpp-sdk-core/include/aws/core/http/windows/WinHttpSyncHttpClient.h
+@@ -41,15 +41,17 @@ namespace Aws
+              */
+             const char* GetLogTag() const override { return "WinHttpSyncHttpClient"; }
+ 
++            virtual uint32_t LastWinError() const override { return m_lastWinError; }
++
+         private:
+             // WinHttp specific implementations
+             void* OpenRequest(const std::shared_ptr<HttpRequest>& request, void* connection, const Aws::StringStream& ss) const override;
+-            void DoAddHeaders(void* httpRequest, Aws::String& headerStr) const override;
+-            uint64_t DoWriteData(void* httpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) const override;
+-            uint64_t FinalizeWriteData(void* hHttpRequest) const override;
+-            bool DoReceiveResponse(void* httpRequest) const override;
++            void DoAddHeaders(void* httpRequest, Aws::String& headerStr) override;
++            uint64_t DoWriteData(void* httpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) override;
++            uint64_t FinalizeWriteData(void* hHttpRequest) override;
++            bool DoReceiveResponse(void* httpRequest) override;
+             bool DoQueryHeaders(void* httpRequest, std::shared_ptr<Aws::Http::HttpResponse>& response, Aws::StringStream& ss, uint64_t& read) const override;
+-            bool DoSendRequest(void* httpRequest) const override;
++            bool DoSendRequest(void* httpRequest) override;
+             bool DoReadData(void* hHttpRequest, char* body, uint64_t size, uint64_t& read) const override;
+             void* GetClientModule() const override;
+ 
+@@ -57,6 +59,8 @@ namespace Aws
+             bool m_verifySSL;
+             Aws::WString m_proxyUserName;
+             Aws::WString m_proxyPassword;
++            
++            uint32_t m_lastWinError;
+         };
+ 
+     } // namespace Http
+diff --git a/aws-cpp-sdk-core/include/aws/core/http/windows/WinINetSyncHttpClient.h b/aws-cpp-sdk-core/include/aws/core/http/windows/WinINetSyncHttpClient.h
+index 6a49767e21..ad7f63e7c1 100644
+--- a/aws-cpp-sdk-core/include/aws/core/http/windows/WinINetSyncHttpClient.h
++++ b/aws-cpp-sdk-core/include/aws/core/http/windows/WinINetSyncHttpClient.h
+@@ -43,12 +43,12 @@ namespace Aws
+ 
+             // WinHttp specific implementations
+             void* OpenRequest(const std::shared_ptr<HttpRequest>& request, void* connection, const Aws::StringStream& ss) const override;
+-            void DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) const override;
+-            uint64_t DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) const override;
+-            uint64_t FinalizeWriteData(void* hHttpRequest) const override;
+-            bool DoReceiveResponse(void* hHttpRequest) const override;
++            void DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) override;
++            uint64_t DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) override;
++            uint64_t FinalizeWriteData(void* hHttpRequest) override;
++            bool DoReceiveResponse(void* hHttpRequest) override;
+             bool DoQueryHeaders(void* hHttpRequest, std::shared_ptr<Aws::Http::HttpResponse>& response, Aws::StringStream& ss, uint64_t& read) const override;
+-            bool DoSendRequest(void* hHttpRequest) const override;
++            bool DoSendRequest(void* hHttpRequest) override;
+             bool DoReadData(void* hHttpRequest, char* body, uint64_t size, uint64_t& read) const override;
+             void* GetClientModule() const override;
+ 
+diff --git a/aws-cpp-sdk-core/include/aws/core/http/windows/WinSyncHttpClient.h b/aws-cpp-sdk-core/include/aws/core/http/windows/WinSyncHttpClient.h
+index dc3efae4ca..c41fd1bfcc 100644
+--- a/aws-cpp-sdk-core/include/aws/core/http/windows/WinSyncHttpClient.h
++++ b/aws-cpp-sdk-core/include/aws/core/http/windows/WinSyncHttpClient.h
+@@ -40,7 +40,7 @@ namespace Aws
+              */
+             std::shared_ptr<HttpResponse> MakeRequest(const std::shared_ptr<HttpRequest>& request,
+                     Aws::Utils::RateLimits::RateLimiterInterface* readLimiter = nullptr,
+-                    Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter = nullptr) const override;
++                    Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter = nullptr) override;
+ 
+             /**
+              * Gets log tag for use in logging.
+@@ -81,22 +81,24 @@ namespace Aws
+              * config flag for whether or not to tell apis to allow redirects.
+              */
+             bool m_allowRedirects;
++            
++            virtual uint32_t LastWinError() const { return (uint32_t)-1; }
+ 
+         private:
+             virtual void* OpenRequest(const std::shared_ptr<HttpRequest>& request, void* connection, const Aws::StringStream& ss) const = 0;
+-            virtual void DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) const = 0;
+-            virtual uint64_t DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) const = 0;
+-            virtual uint64_t FinalizeWriteData(void* hHttpRequest) const = 0;
+-            virtual bool DoReceiveResponse(void* hHttpRequest) const = 0;
++            virtual void DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) = 0;
++            virtual uint64_t DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) = 0;
++            virtual uint64_t FinalizeWriteData(void* hHttpRequest) = 0;
++            virtual bool DoReceiveResponse(void* hHttpRequest) = 0;
+             virtual bool DoQueryHeaders(void* hHttpRequest, std::shared_ptr<Aws::Http::HttpResponse>& response, Aws::StringStream& ss, uint64_t& read) const = 0;
+-            virtual bool DoSendRequest(void* hHttpRequest) const = 0;
++            virtual bool DoSendRequest(void* hHttpRequest) = 0;
+             virtual bool DoReadData(void* hHttpRequest, char* body, uint64_t size, uint64_t& read) const = 0;
+             virtual void* GetClientModule() const = 0;
+ 
+-            bool StreamPayloadToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest, Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter) const;
++            bool StreamPayloadToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest, Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter) ;
+             void LogRequestInternalFailure() const;
+             bool BuildSuccessResponse(const std::shared_ptr<HttpRequest>& request, std::shared_ptr<Aws::Http::HttpResponse>& response, void* hHttpRequest, Aws::Utils::RateLimits::RateLimiterInterface* readLimiter) const;
+-            void AddHeadersToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest) const;
++            void AddHeadersToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest) ;
+ 
+             void* m_openHandle;
+             //we need control over the order in which this gets cleaned up
+diff --git a/aws-cpp-sdk-core/source/http/windows/WinHttpSyncHttpClient.cpp b/aws-cpp-sdk-core/source/http/windows/WinHttpSyncHttpClient.cpp
+index d7f4fc7c9f..658d56a7ee 100644
+--- a/aws-cpp-sdk-core/source/http/windows/WinHttpSyncHttpClient.cpp
++++ b/aws-cpp-sdk-core/source/http/windows/WinHttpSyncHttpClient.cpp
+@@ -186,7 +186,7 @@ void* WinHttpSyncHttpClient::OpenRequest(const std::shared_ptr<HttpRequest>& req
+     return hHttpRequest;
+ }
+ 
+-void WinHttpSyncHttpClient::DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) const
++void WinHttpSyncHttpClient::DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) 
+ {
+ 
+     Aws::WString wHeaderString = StringUtils::ToWString(headerStr.c_str());
+@@ -195,7 +195,7 @@ void WinHttpSyncHttpClient::DoAddHeaders(void* hHttpRequest, Aws::String& header
+         AWS_LOGSTREAM_ERROR(GetLogTag(), "Failed to add HTTP request headers with error code: " << GetLastError());
+ }
+ 
+-uint64_t WinHttpSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) const
++uint64_t WinHttpSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) 
+ {
+     DWORD bytesWritten = 0;
+     uint64_t totalBytesWritten = 0;
+@@ -207,17 +207,23 @@ uint64_t WinHttpSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuff
+ 
+         if (!WinHttpWriteData(hHttpRequest, chunkSizeHexString.c_str(), (DWORD)chunkSizeHexString.size(), &bytesWritten))
+         {
++          m_lastWinError = GetLastError();
++          std::cout << "DoWriteData (A) lastErr " << m_lastWinError << std::endl;
+             return totalBytesWritten;
+         }
+         totalBytesWritten += bytesWritten;
+         if (!WinHttpWriteData(hHttpRequest, streamBuffer, (DWORD)bytesRead, &bytesWritten))
+         {
+-            return totalBytesWritten;
++          m_lastWinError = GetLastError();
++          std::cout << "DoWriteData (B) lastErr " << m_lastWinError << std::endl;
++          return totalBytesWritten;
+         }
+         totalBytesWritten += bytesWritten;
+         if (!WinHttpWriteData(hHttpRequest, CRLF, (DWORD)(sizeof(CRLF) - 1), &bytesWritten))
+         {
+-            return totalBytesWritten;
++          m_lastWinError = GetLastError();
++          std::cout << "DoWriteData (C) lastErr " << m_lastWinError << std::endl;
++          return totalBytesWritten;
+         }
+         totalBytesWritten += bytesWritten;
+     }
+@@ -225,7 +231,9 @@ uint64_t WinHttpSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuff
+     {
+         if (!WinHttpWriteData(hHttpRequest, streamBuffer, (DWORD)bytesRead, &bytesWritten))
+         {
+-            return totalBytesWritten;
++          m_lastWinError = GetLastError();
++          std::cout << "DoWriteData (D) lastErr " << m_lastWinError << std::endl;
++          return totalBytesWritten;
+         }
+         totalBytesWritten += bytesWritten;
+     }
+@@ -233,21 +241,28 @@ uint64_t WinHttpSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuff
+     return totalBytesWritten;
+ }
+ 
+-uint64_t WinHttpSyncHttpClient::FinalizeWriteData(void* hHttpRequest) const
++uint64_t WinHttpSyncHttpClient::FinalizeWriteData(void* hHttpRequest)
+ {
+     DWORD bytesWritten = 0;
+     const char trailingCRLF[] = "0\r\n\r\n";
+     if (!WinHttpWriteData(hHttpRequest, trailingCRLF, (DWORD)(sizeof(trailingCRLF) - 1), &bytesWritten))
+     {
++        m_lastWinError = GetLastError();
+         return 0;
+     }
+ 
+     return bytesWritten;
+ }
+ 
+-bool WinHttpSyncHttpClient::DoReceiveResponse(void* httpRequest) const
++bool WinHttpSyncHttpClient::DoReceiveResponse(void* httpRequest) 
+ {
+-    return (WinHttpReceiveResponse(httpRequest, nullptr) != 0);
++  //return (WinHttpReceiveResponse(httpRequest, nullptr) != 0);
++  auto rval = WinHttpReceiveResponse(httpRequest, nullptr);
++  if (!rval) {
++    m_lastWinError = GetLastError();
++    std::cout << "DoReceiveResponse lastErr " << m_lastWinError << std::endl;
++  }
++  return rval != 0;
+ }
+ 
+ bool WinHttpSyncHttpClient::DoQueryHeaders(void* hHttpRequest, std::shared_ptr<HttpResponse>& response, Aws::StringStream& ss, uint64_t& read) const
+@@ -295,14 +310,22 @@ bool WinHttpSyncHttpClient::DoQueryHeaders(void* hHttpRequest, std::shared_ptr<H
+     return queryResult == TRUE;
+ }
+ 
+-bool WinHttpSyncHttpClient::DoSendRequest(void* hHttpRequest) const
++bool WinHttpSyncHttpClient::DoSendRequest(void* hHttpRequest) 
+ {
+-    return (WinHttpSendRequest(hHttpRequest, NULL, NULL, 0, 0, 0, NULL) != 0);
++    //return (WinHttpSendRequest(hHttpRequest, NULL, NULL, 0, 0, 0, NULL) != 0);
++    auto rval = WinHttpSendRequest(hHttpRequest, NULL, NULL, 0, 0, 0, NULL);
++    if(!rval)
++    {
++        m_lastWinError = GetLastError();
++    }
++    return rval != 0;
+ }
+ 
+ bool WinHttpSyncHttpClient::DoReadData(void* hHttpRequest, char* body, uint64_t size, uint64_t& read) const
+ {
+-    return (WinHttpReadData(hHttpRequest, body, (DWORD)size, (LPDWORD)&read) != 0);
++    //return (WinHttpReadData(hHttpRequest, body, (DWORD)size, (LPDWORD)&read) != 0);
++    auto rval = WinHttpReadData(hHttpRequest, body, (DWORD)size, (LPDWORD)&read);
++    return rval != 0;
+ }
+ 
+ void* WinHttpSyncHttpClient::GetClientModule() const
+diff --git a/aws-cpp-sdk-core/source/http/windows/WinINetSyncHttpClient.cpp b/aws-cpp-sdk-core/source/http/windows/WinINetSyncHttpClient.cpp
+index 1d6f606305..655536383c 100644
+--- a/aws-cpp-sdk-core/source/http/windows/WinINetSyncHttpClient.cpp
++++ b/aws-cpp-sdk-core/source/http/windows/WinINetSyncHttpClient.cpp
+@@ -151,13 +151,13 @@ void* WinINetSyncHttpClient::OpenRequest(const std::shared_ptr<HttpRequest>& req
+     return hHttpRequest;
+ }
+ 
+-void WinINetSyncHttpClient::DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) const
++void WinINetSyncHttpClient::DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) 
+ {
+     if (!HttpAddRequestHeadersA(hHttpRequest, headerStr.c_str(), (DWORD)headerStr.length(), HTTP_ADDREQ_FLAG_REPLACE | HTTP_ADDREQ_FLAG_ADD))
+         AWS_LOGSTREAM_ERROR(GetLogTag(), "Failed to add HTTP request headers with error code: " << GetLastError());
+ }
+ 
+-uint64_t WinINetSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) const
++uint64_t WinINetSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) 
+ {
+     DWORD bytesWritten = 0;
+     uint64_t totalBytesWritten = 0;
+@@ -195,7 +195,7 @@ uint64_t WinINetSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuff
+     return totalBytesWritten;
+ }
+ 
+-uint64_t WinINetSyncHttpClient::FinalizeWriteData(void* hHttpRequest) const
++uint64_t WinINetSyncHttpClient::FinalizeWriteData(void* hHttpRequest)
+ {
+     DWORD bytesWritten = 0;
+     const char trailingCRLF[] = "0\r\n\r\n";
+@@ -207,7 +207,7 @@ uint64_t WinINetSyncHttpClient::FinalizeWriteData(void* hHttpRequest) const
+     return bytesWritten;
+ }
+ 
+-bool WinINetSyncHttpClient::DoReceiveResponse(void* hHttpRequest) const
++bool WinINetSyncHttpClient::DoReceiveResponse(void* hHttpRequest) 
+ {
+     return (HttpEndRequest(hHttpRequest, nullptr, 0, 0) != 0);
+ }
+@@ -242,7 +242,7 @@ bool WinINetSyncHttpClient::DoQueryHeaders(void* hHttpRequest, std::shared_ptr<H
+     return (read != 0);
+ }
+ 
+-bool WinINetSyncHttpClient::DoSendRequest(void* hHttpRequest) const
++bool WinINetSyncHttpClient::DoSendRequest(void* hHttpRequest) 
+ {
+     return (HttpSendRequestEx(hHttpRequest, NULL, NULL, 0, 0) != 0);
+ }
+diff --git a/aws-cpp-sdk-core/source/http/windows/WinSyncHttpClient.cpp b/aws-cpp-sdk-core/source/http/windows/WinSyncHttpClient.cpp
+index 2b644c8ecf..89b1e39428 100644
+--- a/aws-cpp-sdk-core/source/http/windows/WinSyncHttpClient.cpp
++++ b/aws-cpp-sdk-core/source/http/windows/WinSyncHttpClient.cpp
+@@ -64,7 +64,7 @@ void* WinSyncHttpClient::AllocateWindowsHttpRequest(const std::shared_ptr<HttpRe
+     return hHttpRequest;
+ }
+ 
+-void WinSyncHttpClient::AddHeadersToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest) const
++void WinSyncHttpClient::AddHeadersToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest) 
+ {
+     if(request->GetHeaders().size() > 0)
+     {
+@@ -86,11 +86,15 @@ void WinSyncHttpClient::AddHeadersToRequest(const std::shared_ptr<HttpRequest>&
+     }
+ }
+ 
+-bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest, Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter) const
++bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest, Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter) 
+ {
+     bool success = true;
+     bool isChunked = request->HasTransferEncoding() && request->GetTransferEncoding() == Aws::Http::CHUNKED_VALUE;
+     auto payloadStream = request->GetContentBody();
++    unsigned failurepoint = 0;
++    unsigned cnt_iters = 0;
++    auto start_all = std::chrono::system_clock::now();
++    uint32_t lastErr0 = 0, lastErr1 = 0, lastErr2 = 0, lastErr3 = 0, lastErr4 = 0, lastErr5 = 0;
+     if(payloadStream)
+     {
+         uint64_t bytesWritten;
+@@ -99,9 +103,15 @@ bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest
+         bool done = false;
+         while(success && !done)
+         {
++          auto start_iter = std::chrono::system_clock::now();
++          ++cnt_iters;
+             payloadStream->read(streamBuffer, HTTP_REQUEST_WRITE_BUFFER_LENGTH);
+             std::streamsize bytesRead = payloadStream->gcount();
+             success = !payloadStream->bad();
++            if (!success) {
++              failurepoint |= 0x01;
++              lastErr0 = LastWinError();
++            }
+ 
+             bytesWritten = 0;
+             if (bytesRead > 0)
+@@ -109,7 +119,9 @@ bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest
+                 bytesWritten = DoWriteData(hHttpRequest, streamBuffer, bytesRead, isChunked);
+                 if (!bytesWritten)
+                 {
+-                    success = false;
++                  lastErr1 = LastWinError();
++                  success = false;
++                    failurepoint |= 0x02;
+                 }
+                 else if(writeLimiter)
+                 {
+@@ -125,10 +137,21 @@ bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest
+ 
+             if(!payloadStream->good())
+             {
+-                done = true;
++              lastErr2 = LastWinError();
++              failurepoint |= 0x04;
++              done = true;
+             }
+ 
+-            success = success && ContinueRequest(*request) && IsRequestProcessingEnabled();
++            int whatpath = 0;
++            success = success && (whatpath=1,ContinueRequest(*request)) && (whatpath=2,IsRequestProcessingEnabled());
++            if (whatpath != 2) {
++              lastErr3 = LastWinError();
++              auto time_now = std::chrono::system_clock::now();
++                auto all_dur = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - start_all);
++              auto iter_dur = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - start_iter);
++              std::cout << "StreamPayloadToRequest, whatpath " << whatpath << " cnt_iters " << cnt_iters << " dur iter " << iter_dur.count() << "ms, all " << all_dur.count() << std::endl;
++              failurepoint |= 0x08;
++            }
+         }
+ 
+         if (success && isChunked)
+@@ -136,7 +159,9 @@ bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest
+             bytesWritten = FinalizeWriteData(hHttpRequest);
+             if (!bytesWritten)
+             {
+-                success = false;
++              lastErr4 = LastWinError();
++              success = false;
++                failurepoint |= 0x10;
+             }
+             else if (writeLimiter)
+             {
+@@ -151,7 +176,19 @@ bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest
+     if(success)
+     {
+         success = DoReceiveResponse(hHttpRequest);
++        if (!success) {
++          lastErr5 = LastWinError();
++          failurepoint |= 0x20;
++        }
++    }
++
++    if (!success || failurepoint) {
++      auto time_now = std::chrono::system_clock::now();
++      auto all_dur = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - start_all);
++      std::cout << "StreamPayloadToRequest, failurepoint 0x" << std::hex << failurepoint << " cnt_iters " << std::dec << cnt_iters << " dur " << all_dur.count() << "ms" << std::endl;
++      std::cout << "StreamPayloadToRequest, last errs " << lastErr0 << ", " << lastErr1 << ", " << lastErr2 << ", " << lastErr3 << ", " << lastErr4 << ", " << lastErr5 << std::endl;
+     }
++
+     return success;
+ }
+ 
+@@ -256,7 +293,7 @@ bool WinSyncHttpClient::BuildSuccessResponse(const std::shared_ptr<HttpRequest>&
+ 
+ std::shared_ptr<HttpResponse> WinSyncHttpClient::MakeRequest(const std::shared_ptr<HttpRequest>& request,
+         Aws::Utils::RateLimits::RateLimiterInterface* readLimiter,
+-        Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter) const
++        Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter) 
+ {
+ 	//we URL encode right before going over the wire to avoid double encoding problems with the signer.
+ 	URI& uriRef = request->GetUri();
+@@ -285,7 +322,8 @@ std::shared_ptr<HttpResponse> WinSyncHttpClient::MakeRequest(const std::shared_p
+ 
+         AddHeadersToRequest(request, hHttpRequest);
+         OverrideOptionsOnRequestHandle(hHttpRequest);
+-        if (DoSendRequest(hHttpRequest) && StreamPayloadToRequest(request, hHttpRequest, writeLimiter))
++        int whatpath = 0;
++        if ((whatpath=1,DoSendRequest(hHttpRequest)) && (whatpath=2,StreamPayloadToRequest(request, hHttpRequest, writeLimiter)))
+         {
+             success = BuildSuccessResponse(request, response, hHttpRequest, readLimiter);
+         }
+@@ -293,6 +331,16 @@ std::shared_ptr<HttpResponse> WinSyncHttpClient::MakeRequest(const std::shared_p
+         {
+             response->SetClientErrorType(CoreErrors::NETWORK_CONNECTION);
+             response->SetClientErrorMessage("Encountered network error when sending http request");
++            AWS_LOGSTREAM_DEBUG(
++                GetLogTag(),
++                "Encountered network error (" << LastWinError()
++                                              << " when sending http request"
++                    << " (whatpath " << whatpath << ")" );
++            std::cout <<
++                GetLogTag() <<
++                " Encountered network error ("
++                    << LastWinError() << " when sending http request"
++                    << " (whatpath " << whatpath << ")" << std::endl;
+         }
+     }
+ 
+diff --git a/testing-resources/include/aws/testing/mocks/http/MockHttpClient.h b/testing-resources/include/aws/testing/mocks/http/MockHttpClient.h
+index 7c3ead3438..82b60e7b62 100644
+--- a/testing-resources/include/aws/testing/mocks/http/MockHttpClient.h
++++ b/testing-resources/include/aws/testing/mocks/http/MockHttpClient.h
+@@ -22,7 +22,7 @@ class MockHttpClient : public Aws::Http::HttpClient
+ public:
+     std::shared_ptr<Aws::Http::HttpResponse> MakeRequest(const std::shared_ptr<Aws::Http::HttpRequest>& request,
+                                                          Aws::Utils::RateLimits::RateLimiterInterface* readLimiter = nullptr,
+-                                                         Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter = nullptr) const override
++                                                         Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter = nullptr) override
+     {
+         AWS_UNREFERENCED_PARAM(readLimiter);
+         AWS_UNREFERENCED_PARAM(writeLimiter);

@@ -41,7 +41,7 @@ namespace Aws
              */
             virtual std::shared_ptr<HttpResponse> MakeRequest(const std::shared_ptr<HttpRequest>& request,
                 Aws::Utils::RateLimits::RateLimiterInterface* readLimiter = nullptr,
-                Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter = nullptr) const = 0;
+                Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter = nullptr) = 0;
 
             /**
              * If yes, the http client supports transfer-encoding:chunked.

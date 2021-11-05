@@ -43,12 +43,12 @@ namespace Aws
 
             // WinHttp specific implementations
             void* OpenRequest(const std::shared_ptr<HttpRequest>& request, void* connection, const Aws::StringStream& ss) const override;
-            void DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) const override;
-            uint64_t DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) const override;
-            uint64_t FinalizeWriteData(void* hHttpRequest) const override;
-            bool DoReceiveResponse(void* hHttpRequest) const override;
+            void DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) override;
+            uint64_t DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) override;
+            uint64_t FinalizeWriteData(void* hHttpRequest) override;
+            bool DoReceiveResponse(void* hHttpRequest) override;
             bool DoQueryHeaders(void* hHttpRequest, std::shared_ptr<Aws::Http::HttpResponse>& response, Aws::StringStream& ss, uint64_t& read) const override;
-            bool DoSendRequest(void* hHttpRequest) const override;
+            bool DoSendRequest(void* hHttpRequest) override;
             bool DoReadData(void* hHttpRequest, char* body, uint64_t size, uint64_t& read) const override;
             void* GetClientModule() const override;
 

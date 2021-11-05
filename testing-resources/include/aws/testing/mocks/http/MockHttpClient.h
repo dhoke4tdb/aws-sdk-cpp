@@ -22,7 +22,7 @@ class MockHttpClient : public Aws::Http::HttpClient
 public:
     std::shared_ptr<Aws::Http::HttpResponse> MakeRequest(const std::shared_ptr<Aws::Http::HttpRequest>& request,
                                                          Aws::Utils::RateLimits::RateLimiterInterface* readLimiter = nullptr,
-                                                         Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter = nullptr) const override
+                                                         Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter = nullptr) override
     {
         AWS_UNREFERENCED_PARAM(readLimiter);
         AWS_UNREFERENCED_PARAM(writeLimiter);

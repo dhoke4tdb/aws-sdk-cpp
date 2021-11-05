@@ -41,15 +41,17 @@ namespace Aws
              */
             const char* GetLogTag() const override { return "WinHttpSyncHttpClient"; }
 
+            virtual uint32_t LastWinError() const override { return m_lastWinError; }
+
         private:
             // WinHttp specific implementations
             void* OpenRequest(const std::shared_ptr<HttpRequest>& request, void* connection, const Aws::StringStream& ss) const override;
-            void DoAddHeaders(void* httpRequest, Aws::String& headerStr) const override;
-            uint64_t DoWriteData(void* httpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) const override;
-            uint64_t FinalizeWriteData(void* hHttpRequest) const override;
-            bool DoReceiveResponse(void* httpRequest) const override;
+            void DoAddHeaders(void* httpRequest, Aws::String& headerStr) override;
+            uint64_t DoWriteData(void* httpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) override;
+            uint64_t FinalizeWriteData(void* hHttpRequest) override;
+            bool DoReceiveResponse(void* httpRequest) override;
             bool DoQueryHeaders(void* httpRequest, std::shared_ptr<Aws::Http::HttpResponse>& response, Aws::StringStream& ss, uint64_t& read) const override;
-            bool DoSendRequest(void* httpRequest) const override;
+            bool DoSendRequest(void* httpRequest) override;
             bool DoReadData(void* hHttpRequest, char* body, uint64_t size, uint64_t& read) const override;
             void* GetClientModule() const override;
 
@@ -57,6 +59,8 @@ namespace Aws
             bool m_verifySSL;
             Aws::WString m_proxyUserName;
             Aws::WString m_proxyPassword;
+            
+            uint32_t m_lastWinError;
         };
 
     } // namespace Http

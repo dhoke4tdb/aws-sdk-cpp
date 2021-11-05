@@ -186,7 +186,7 @@ void* WinHttpSyncHttpClient::OpenRequest(const std::shared_ptr<HttpRequest>& req
     return hHttpRequest;
 }
 
-void WinHttpSyncHttpClient::DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) const
+void WinHttpSyncHttpClient::DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) 
 {
 
     Aws::WString wHeaderString = StringUtils::ToWString(headerStr.c_str());
@@ -195,7 +195,7 @@ void WinHttpSyncHttpClient::DoAddHeaders(void* hHttpRequest, Aws::String& header
         AWS_LOGSTREAM_ERROR(GetLogTag(), "Failed to add HTTP request headers with error code: " << GetLastError());
 }
 
-uint64_t WinHttpSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) const
+uint64_t WinHttpSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) 
 {
     DWORD bytesWritten = 0;
     uint64_t totalBytesWritten = 0;
@@ -207,17 +207,23 @@ uint64_t WinHttpSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuff
 
         if (!WinHttpWriteData(hHttpRequest, chunkSizeHexString.c_str(), (DWORD)chunkSizeHexString.size(), &bytesWritten))
         {
+          m_lastWinError = GetLastError();
+          std::cout << "DoWriteData (A) lastErr " << m_lastWinError << std::endl;
             return totalBytesWritten;
         }
         totalBytesWritten += bytesWritten;
         if (!WinHttpWriteData(hHttpRequest, streamBuffer, (DWORD)bytesRead, &bytesWritten))
         {
-            return totalBytesWritten;
+          m_lastWinError = GetLastError();
+          std::cout << "DoWriteData (B) lastErr " << m_lastWinError << std::endl;
+          return totalBytesWritten;
         }
         totalBytesWritten += bytesWritten;
         if (!WinHttpWriteData(hHttpRequest, CRLF, (DWORD)(sizeof(CRLF) - 1), &bytesWritten))
         {
-            return totalBytesWritten;
+          m_lastWinError = GetLastError();
+          std::cout << "DoWriteData (C) lastErr " << m_lastWinError << std::endl;
+          return totalBytesWritten;
         }
         totalBytesWritten += bytesWritten;
     }
@@ -225,7 +231,9 @@ uint64_t WinHttpSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuff
     {
         if (!WinHttpWriteData(hHttpRequest, streamBuffer, (DWORD)bytesRead, &bytesWritten))
         {
-            return totalBytesWritten;
+          m_lastWinError = GetLastError();
+          std::cout << "DoWriteData (D) lastErr " << m_lastWinError << std::endl;
+          return totalBytesWritten;
         }
         totalBytesWritten += bytesWritten;
     }
@@ -233,21 +241,99 @@ uint64_t WinHttpSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuff
     return totalBytesWritten;
 }
 
-uint64_t WinHttpSyncHttpClient::FinalizeWriteData(void* hHttpRequest) const
+uint64_t WinHttpSyncHttpClient::FinalizeWriteData(void* hHttpRequest)
 {
     DWORD bytesWritten = 0;
     const char trailingCRLF[] = "0\r\n\r\n";
     if (!WinHttpWriteData(hHttpRequest, trailingCRLF, (DWORD)(sizeof(trailingCRLF) - 1), &bytesWritten))
     {
+        m_lastWinError = GetLastError();
         return 0;
     }
 
     return bytesWritten;
 }
 
-bool WinHttpSyncHttpClient::DoReceiveResponse(void* httpRequest) const
+bool WinHttpSyncHttpClient::DoReceiveResponse(void* httpRequest) 
 {
-    return (WinHttpReceiveResponse(httpRequest, nullptr) != 0);
+  //return (WinHttpReceiveResponse(httpRequest, nullptr) != 0);
+#if 0
+  static std::vector<DWORD> cbstatsrecvd;
+  cbstatsrecvd.clear();
+  auto cb = +[](HINTERNET hInternet, DWORD_PTR dwContext, DWORD dwInternetStatus, LPVOID lpvStatusInformation, DWORD dwStatusInformationLength) ->void {
+    (void)hInternet, (void)dwContext, (void)lpvStatusInformation, (void)dwStatusInformationLength;
+    cbstatsrecvd.emplace_back(dwInternetStatus);
+  };
+  //Attempts to set failing with 12019 (0x2ef3)
+  auto priorcb = WinHttpSetStatusCallback(httpRequest, cb, (WINHTTP_CALLBACK_FLAG_ALL_COMPLETIONS | WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS), NULL);
+  if (priorcb == WINHTTP_INVALID_STATUS_CALLBACK) {
+    auto le = GetLastError();
+    std::cout << "DoReceiveResponse, error setting callback!!! GetLastError() " << le << "(0x" << std::hex << le << ")" << std::dec << std::endl;
+  }
+#endif
+  auto rval = WinHttpReceiveResponse(httpRequest, nullptr);
+  if (!rval) {
+    m_lastWinError = GetLastError();
+    std::cout << "DoReceiveResponse lastErr " << m_lastWinError << std::endl;
+    {
+      // based on https://social.msdn.microsoft.com/Forums/windowsdesktop/en-US/4a8f7be5-5e15-4213-a7bb-ddf424a954e6/winhttpsendrequest-ends-with-12002-errorhttptimeout-after-21-seconds-no-matter-what-timeout
+      DWORD timeoutval = 0;
+      //TBD: prototypes seem to show 'int' for WinHttpSetTimeouts(), with comments about 'negative' being bad I think...
+      //yet the source example using DWORD (unsigned?) variables...
+      DWORD size = sizeof(DWORD);
+      //TBD: hSession vs httpRequest ??? 
+      auto reqok = WinHttpQueryOption(httpRequest, WINHTTP_OPTION_RESOLVE_TIMEOUT, &timeoutval, &size);
+
+      if (reqok) {
+        printf("WINHTTP_OPTION_RESOLVE_TIMEOUT: %d\n", timeoutval);
+      }
+      else {
+        auto le = GetLastError();
+        printf("err %d (0x%x) retrieving WINHTTP_OPTION_RESOLVE_TIMEOUT", le, le);
+      }
+
+      reqok = WinHttpQueryOption(httpRequest, WINHTTP_OPTION_CONNECT_TIMEOUT, &timeoutval, &size);
+
+      if (reqok) {
+        printf("WINHTTP_OPTION_CONNECT_TIMEOUT: %d\n", timeoutval);
+      }
+      else {
+        auto le = GetLastError();
+        printf("err %d (0x%x) retrieving WINHTTP_OPTION_CONNECT_TIMEOUT", le, le);
+      }
+
+      reqok = WinHttpQueryOption(httpRequest, WINHTTP_OPTION_SEND_TIMEOUT, &timeoutval, &size);
+
+      if (reqok) {
+        printf("WINHTTP_OPTION_SEND_TIMEOUT: %d\n", timeoutval);
+      }
+      else {
+        auto le = GetLastError();
+        printf("err %d (0x%x) retrieving WINHTTP_OPTION_SEND_TIMEOUT", le, le);
+      }
+
+      reqok = WinHttpQueryOption(httpRequest, WINHTTP_OPTION_RECEIVE_TIMEOUT, &timeoutval, &size);
+
+      if (reqok) {
+        printf("WINHTTP_OPTION_RECEIVE_TIMEOUT: %d\n", timeoutval);
+      }
+      else {
+        auto le = GetLastError();
+        printf("err %d (0x%x) retrieving WINHTTP_OPTION_RECEIVE_TIMEOUT", le, le);
+      }
+    }
+    //    std::cout << "(DoReceiveResponse, cb values, cnt " << cbstatsrecvd.size() << std::endl;
+//    for (auto ui = 0u; ui < cbstatsrecvd.size(); ++ui) {
+//      std::cout << cbstatsrecvd[ui] << std::endl;
+//    }
+//    std::cout << ")" << std::endl;
+  }
+#if 0
+  //While the callback was returned, we don't know what the notifications selected with it were to reinstate???
+  WinHttpSetStatusCallback(httpRequest, priorcb, (WINHTTP_CALLBACK_FLAG_ALL_COMPLETIONS | WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS), NULL);
+#endif
+
+  return rval != 0;
 }
 
 bool WinHttpSyncHttpClient::DoQueryHeaders(void* hHttpRequest, std::shared_ptr<HttpResponse>& response, Aws::StringStream& ss, uint64_t& read) const
@@ -295,14 +381,22 @@ bool WinHttpSyncHttpClient::DoQueryHeaders(void* hHttpRequest, std::shared_ptr<H
     return queryResult == TRUE;
 }
 
-bool WinHttpSyncHttpClient::DoSendRequest(void* hHttpRequest) const
+bool WinHttpSyncHttpClient::DoSendRequest(void* hHttpRequest) 
 {
-    return (WinHttpSendRequest(hHttpRequest, NULL, NULL, 0, 0, 0, NULL) != 0);
+    //return (WinHttpSendRequest(hHttpRequest, NULL, NULL, 0, 0, 0, NULL) != 0);
+    auto rval = WinHttpSendRequest(hHttpRequest, NULL, NULL, 0, 0, 0, NULL);
+    if(!rval)
+    {
+        m_lastWinError = GetLastError();
+    }
+    return rval != 0;
 }
 
 bool WinHttpSyncHttpClient::DoReadData(void* hHttpRequest, char* body, uint64_t size, uint64_t& read) const
 {
-    return (WinHttpReadData(hHttpRequest, body, (DWORD)size, (LPDWORD)&read) != 0);
+    //return (WinHttpReadData(hHttpRequest, body, (DWORD)size, (LPDWORD)&read) != 0);
+    auto rval = WinHttpReadData(hHttpRequest, body, (DWORD)size, (LPDWORD)&read);
+    return rval != 0;
 }
 
 void* WinHttpSyncHttpClient::GetClientModule() const

@@ -64,7 +64,7 @@ void* WinSyncHttpClient::AllocateWindowsHttpRequest(const std::shared_ptr<HttpRe
     return hHttpRequest;
 }
 
-void WinSyncHttpClient::AddHeadersToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest) const
+void WinSyncHttpClient::AddHeadersToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest) 
 {
     if(request->GetHeaders().size() > 0)
     {
@@ -86,11 +86,15 @@ void WinSyncHttpClient::AddHeadersToRequest(const std::shared_ptr<HttpRequest>& 
     }
 }
 
-bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest, Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter) const
+bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest, Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter) 
 {
     bool success = true;
     bool isChunked = request->HasTransferEncoding() && request->GetTransferEncoding() == Aws::Http::CHUNKED_VALUE;
     auto payloadStream = request->GetContentBody();
+    unsigned failurepoint = 0;
+    unsigned cnt_iters = 0;
+    auto start_all = std::chrono::system_clock::now();
+    uint32_t lastErr0 = 0, lastErr1 = 0, lastErr2 = 0, lastErr3 = 0, lastErr4 = 0, lastErr5 = 0;
     if(payloadStream)
     {
         uint64_t bytesWritten;
@@ -99,9 +103,22 @@ bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest
         bool done = false;
         while(success && !done)
         {
+          auto start_iter = std::chrono::system_clock::now();
+          ++cnt_iters;
             payloadStream->read(streamBuffer, HTTP_REQUEST_WRITE_BUFFER_LENGTH);
             std::streamsize bytesRead = payloadStream->gcount();
             success = !payloadStream->bad();
+            //So learned, good() is != opposite of bad()...
+            //if (success && !payloadStream->good()) {
+            //  failurepoint |= 0x100; //TBD: Can we, and if so how, be !bad and !good()? earlier diag runs suggesting possible...
+            //}
+            if (payloadStream->fail()) {
+              failurepoint |= 0x100;
+            }
+            if (!success) {
+              failurepoint |= 0x01;
+              lastErr0 = LastWinError();
+            }
 
             bytesWritten = 0;
             if (bytesRead > 0)
@@ -109,7 +126,9 @@ bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest
                 bytesWritten = DoWriteData(hHttpRequest, streamBuffer, bytesRead, isChunked);
                 if (!bytesWritten)
                 {
-                    success = false;
+                  lastErr1 = LastWinError();
+                  success = false;
+                    failurepoint |= 0x02;
                 }
                 else if(writeLimiter)
                 {
@@ -125,10 +144,29 @@ bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest
 
             if(!payloadStream->good())
             {
-                done = true;
+              if (payloadStream->fail() || payloadStream->bad()) {
+                lastErr2 = LastWinError();
+                if (payloadStream->fail()) {
+                  failurepoint |= 0x04;
+                }
+                else if (payloadStream->bad()) {
+                  failurepoint |= 0x40;
+                }
+              }
+              //else, must be ->eof()
+              done = true;
             }
 
-            success = success && ContinueRequest(*request) && IsRequestProcessingEnabled();
+            int whatpath = 0;
+            success = success && (whatpath=1,ContinueRequest(*request)) && (whatpath=2,IsRequestProcessingEnabled());
+            if (whatpath != 2) {
+              lastErr3 = LastWinError();
+              auto time_now = std::chrono::system_clock::now();
+                auto all_dur = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - start_all);
+              auto iter_dur = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - start_iter);
+              std::cout << "StreamPayloadToRequest, whatpath " << whatpath << " cnt_iters " << cnt_iters << " dur iter " << iter_dur.count() << "ms, all " << all_dur.count() << std::endl;
+              failurepoint |= 0x08;
+            }
         }
 
         if (success && isChunked)
@@ -136,7 +174,9 @@ bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest
             bytesWritten = FinalizeWriteData(hHttpRequest);
             if (!bytesWritten)
             {
-                success = false;
+              lastErr4 = LastWinError();
+              success = false;
+                failurepoint |= 0x10;
             }
             else if (writeLimiter)
             {
@@ -151,7 +191,19 @@ bool WinSyncHttpClient::StreamPayloadToRequest(const std::shared_ptr<HttpRequest
     if(success)
     {
         success = DoReceiveResponse(hHttpRequest);
+        if (!success) {
+          lastErr5 = LastWinError();
+          failurepoint |= 0x20;
+        }
     }
+
+    if (!success || failurepoint) {
+      auto time_now = std::chrono::system_clock::now();
+      auto all_dur = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - start_all);
+      std::cout << "StreamPayloadToRequest, failurepoint 0x" << std::hex << failurepoint << " cnt_iters " << std::dec << cnt_iters << " dur " << all_dur.count() << "ms" << std::endl;
+      std::cout << "StreamPayloadToRequest, last errs " << lastErr0 << ", " << lastErr1 << ", " << lastErr2 << ", " << lastErr3 << ", " << lastErr4 << ", " << lastErr5 << std::endl;
+    }
+
     return success;
 }
 
@@ -256,7 +308,7 @@ bool WinSyncHttpClient::BuildSuccessResponse(const std::shared_ptr<HttpRequest>&
 
 std::shared_ptr<HttpResponse> WinSyncHttpClient::MakeRequest(const std::shared_ptr<HttpRequest>& request,
         Aws::Utils::RateLimits::RateLimiterInterface* readLimiter,
-        Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter) const
+        Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter) 
 {
 	//we URL encode right before going over the wire to avoid double encoding problems with the signer.
 	URI& uriRef = request->GetUri();
@@ -285,7 +337,8 @@ std::shared_ptr<HttpResponse> WinSyncHttpClient::MakeRequest(const std::shared_p
 
         AddHeadersToRequest(request, hHttpRequest);
         OverrideOptionsOnRequestHandle(hHttpRequest);
-        if (DoSendRequest(hHttpRequest) && StreamPayloadToRequest(request, hHttpRequest, writeLimiter))
+        int whatpath = 0;
+        if ((whatpath=1,DoSendRequest(hHttpRequest)) && (whatpath=2,StreamPayloadToRequest(request, hHttpRequest, writeLimiter)))
         {
             success = BuildSuccessResponse(request, response, hHttpRequest, readLimiter);
         }
@@ -293,6 +346,16 @@ std::shared_ptr<HttpResponse> WinSyncHttpClient::MakeRequest(const std::shared_p
         {
             response->SetClientErrorType(CoreErrors::NETWORK_CONNECTION);
             response->SetClientErrorMessage("Encountered network error when sending http request");
+            AWS_LOGSTREAM_DEBUG(
+                GetLogTag(),
+                "Encountered network error (" << LastWinError()
+                                              << " when sending http request"
+                    << " (whatpath " << whatpath << ")" );
+            std::cout <<
+                GetLogTag() <<
+                " Encountered network error ("
+                    << LastWinError() << " when sending http request"
+                    << " (whatpath " << whatpath << ")" << std::endl;
         }
     }
 

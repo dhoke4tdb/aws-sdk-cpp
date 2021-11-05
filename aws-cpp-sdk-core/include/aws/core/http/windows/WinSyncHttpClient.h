@@ -40,7 +40,7 @@ namespace Aws
              */
             std::shared_ptr<HttpResponse> MakeRequest(const std::shared_ptr<HttpRequest>& request,
                     Aws::Utils::RateLimits::RateLimiterInterface* readLimiter = nullptr,
-                    Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter = nullptr) const override;
+                    Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter = nullptr) override;
 
             /**
              * Gets log tag for use in logging.
@@ -81,22 +81,24 @@ namespace Aws
              * config flag for whether or not to tell apis to allow redirects.
              */
             bool m_allowRedirects;
+            
+            virtual uint32_t LastWinError() const { return (uint32_t)-1; }
 
         private:
             virtual void* OpenRequest(const std::shared_ptr<HttpRequest>& request, void* connection, const Aws::StringStream& ss) const = 0;
-            virtual void DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) const = 0;
-            virtual uint64_t DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) const = 0;
-            virtual uint64_t FinalizeWriteData(void* hHttpRequest) const = 0;
-            virtual bool DoReceiveResponse(void* hHttpRequest) const = 0;
+            virtual void DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) = 0;
+            virtual uint64_t DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) = 0;
+            virtual uint64_t FinalizeWriteData(void* hHttpRequest) = 0;
+            virtual bool DoReceiveResponse(void* hHttpRequest) = 0;
             virtual bool DoQueryHeaders(void* hHttpRequest, std::shared_ptr<Aws::Http::HttpResponse>& response, Aws::StringStream& ss, uint64_t& read) const = 0;
-            virtual bool DoSendRequest(void* hHttpRequest) const = 0;
+            virtual bool DoSendRequest(void* hHttpRequest) = 0;
             virtual bool DoReadData(void* hHttpRequest, char* body, uint64_t size, uint64_t& read) const = 0;
             virtual void* GetClientModule() const = 0;
 
-            bool StreamPayloadToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest, Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter) const;
+            bool StreamPayloadToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest, Aws::Utils::RateLimits::RateLimiterInterface* writeLimiter) ;
             void LogRequestInternalFailure() const;
             bool BuildSuccessResponse(const std::shared_ptr<HttpRequest>& request, std::shared_ptr<Aws::Http::HttpResponse>& response, void* hHttpRequest, Aws::Utils::RateLimits::RateLimiterInterface* readLimiter) const;
-            void AddHeadersToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest) const;
+            void AddHeadersToRequest(const std::shared_ptr<HttpRequest>& request, void* hHttpRequest) ;
 
             void* m_openHandle;
             //we need control over the order in which this gets cleaned up

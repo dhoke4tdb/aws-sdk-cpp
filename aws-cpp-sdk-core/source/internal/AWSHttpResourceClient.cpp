@@ -71,7 +71,7 @@ namespace Aws
             // EC2MetadataService throttles by delaying the response so the service client should set a large read timeout.
             // EC2MetadataService delay is in order of seconds so it only make sense to retry after a couple of seconds.
             res.connectTimeoutMs = 1000;
-            res.requestTimeoutMs = 1000;
+            res.requestTimeoutMs = 180000; // 90000; // 1000;
             res.retryStrategy = Aws::MakeShared<DefaultRetryStrategy>(RESOURCE_CLIENT_CONFIGURATION_ALLOCATION_TAG, 1, 1000);
 
             return res;

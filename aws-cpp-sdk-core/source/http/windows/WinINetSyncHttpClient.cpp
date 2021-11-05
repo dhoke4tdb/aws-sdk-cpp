@@ -151,13 +151,13 @@ void* WinINetSyncHttpClient::OpenRequest(const std::shared_ptr<HttpRequest>& req
     return hHttpRequest;
 }
 
-void WinINetSyncHttpClient::DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) const
+void WinINetSyncHttpClient::DoAddHeaders(void* hHttpRequest, Aws::String& headerStr) 
 {
     if (!HttpAddRequestHeadersA(hHttpRequest, headerStr.c_str(), (DWORD)headerStr.length(), HTTP_ADDREQ_FLAG_REPLACE | HTTP_ADDREQ_FLAG_ADD))
         AWS_LOGSTREAM_ERROR(GetLogTag(), "Failed to add HTTP request headers with error code: " << GetLastError());
 }
 
-uint64_t WinINetSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) const
+uint64_t WinINetSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuffer, uint64_t bytesRead, bool isChunked) 
 {
     DWORD bytesWritten = 0;
     uint64_t totalBytesWritten = 0;
@@ -195,7 +195,7 @@ uint64_t WinINetSyncHttpClient::DoWriteData(void* hHttpRequest, char* streamBuff
     return totalBytesWritten;
 }
 
-uint64_t WinINetSyncHttpClient::FinalizeWriteData(void* hHttpRequest) const
+uint64_t WinINetSyncHttpClient::FinalizeWriteData(void* hHttpRequest)
 {
     DWORD bytesWritten = 0;
     const char trailingCRLF[] = "0\r\n\r\n";
@@ -207,7 +207,7 @@ uint64_t WinINetSyncHttpClient::FinalizeWriteData(void* hHttpRequest) const
     return bytesWritten;
 }
 
-bool WinINetSyncHttpClient::DoReceiveResponse(void* hHttpRequest) const
+bool WinINetSyncHttpClient::DoReceiveResponse(void* hHttpRequest) 
 {
     return (HttpEndRequest(hHttpRequest, nullptr, 0, 0) != 0);
 }
@@ -242,7 +242,7 @@ bool WinINetSyncHttpClient::DoQueryHeaders(void* hHttpRequest, std::shared_ptr<H
     return (read != 0);
 }
 
-bool WinINetSyncHttpClient::DoSendRequest(void* hHttpRequest) const
+bool WinINetSyncHttpClient::DoSendRequest(void* hHttpRequest) 
 {
     return (HttpSendRequestEx(hHttpRequest, NULL, NULL, 0, 0) != 0);
 }
